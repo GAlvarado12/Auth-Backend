@@ -5,26 +5,25 @@ const options = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "Auth Backend API",
+      title: "API de Autenticación",
       version: "1.0.0",
-      description: "API de autenticación con roles y permisos"
+      description: "Backend de autenticación con usuarios, roles y permisos"
     },
     servers: [
-      {
-        url: "http://localhost:3000/api"
-      }
+      { url: "http://localhost:3000/api" }
     ],
     components: {
       securitySchemes: {
-        bearerAuth: {              // 🔐 esquema JWT
+        bearerAuth: {
           type: "http",
           scheme: "bearer",
           bearerFormat: "JWT"
         }
       }
-    }
+    },
+    security: [{ bearerAuth: [] }]
   },
-  apis: ["./src/routes/*.js"], // 📌 tus rutas documentadas
+  apis: ["./src/routes/*.js"], // donde están documentadas las rutas
 };
 
 const swaggerSpec = swaggerJsDoc(options);

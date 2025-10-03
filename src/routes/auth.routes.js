@@ -1,22 +1,22 @@
 const express = require('express');
 const router = express.Router();
-const authController = require('../controllers/auth.controller');
-const { verifyToken } = require('../middleware/auth.middleware');
-const { checkRole } = require('../middleware/role.middleware');
+const ctrl = require('../controllers/auth.controller');
+const { verificarToken } = require('../middleware/auth.middleware');
+const { requerirRol, requerirPermiso } = require('../middleware/role.middleware');
 
 /**
  * @swagger
  * tags:
- *   name: Auth
- *   description: Endpoints de autenticación y gestión de usuarios
+ *   name: Autenticación
+ *   description: Endpoints para gestión de usuarios, roles y permisos
  */
 
 /**
  * @swagger
- * /auth/register:
+ * /auth/registrar:
  *   post:
  *     summary: Registrar un nuevo usuario
- *     tags: [Auth]
+ *     tags: [Autenticación]
  *     requestBody:
  *       required: true
  *       content:
@@ -24,106 +24,118 @@ const { checkRole } = require('../middleware/role.middleware');
  *           schema:
  *             type: object
  *             properties:
- *               username:
+ *               nombre:
  *                 type: string
- *                 example: "gustavo"
- *               password:
+ *                 example: "Juan Pérez"
+ *               correo:
  *                 type: string
- *                 example: "123456"
- *               role:
+ *                 example: "juan@example.com"
+ *               clave:
  *                 type: string
- *                 example: "admin"
+ *                 example: "ClaveSegura123*"
+ *               rolInicial:
+ *                 type: string
+ *                 example: "Cliente"
  *     responses:
  *       200:
- *         description: Usuario registrado exitosamente
+ *         description: Usuario creado exitosamente
  */
-router.post('/register', authController.register);
+router.post('/registrar', ctrl.registrar);
 
 /**
  * @swagger
  * /auth/login:
  *   post:
- *     summary: Iniciar sesión de usuario
- *     tags: [Auth]
+ *     summary: Iniciar sesión
+ *     tags: [Autenticación]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               username:
- *                 type: string
- *                 example: "gustavo"
- *               password:
- *                 type: string
- *                 example: "123456"
+ *             oneOf:
+ *               - type: object
+ *                 required: [nombre, clave]
+ *                 properties:
+ *                   nombre:
+ *                     type: string
+ *                     example: "admin"
+ *                   clave:
+ *                     type: string
+ *                     example: "Admin123*"
+ *               - type: object
+ *                 required: [correo, clave]
+ *                 properties:
+ *                   correo:
+ *                     type: string
+ *                     example: "admin@sistema.com"
+ *                   clave:
+ *                     type: string
+ *                     example: "Admin123*"
  *     responses:
  *       200:
  *         description: Login exitoso con token JWT
  */
-router.post('/login', authController.login);
+router.post('/login', ctrl.iniciarSesion);
+
+/**
+ * @swagger
+ * /auth/perfil:
+ *   get:
+ *     summary: Obtener perfil del usuario autenticado
+ *     tags: [Autenticación]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Perfil del usuario autenticado
+ */
+router.get('/perfil', verificarToken, ctrl.perfil);
 
 /**
  * @swagger
  * /auth/admin:
  *   get:
- *     summary: Ruta protegida solo para administradores
- *     tags: [Auth]
+ *     summary: Acceso solo para administradores
+ *     tags: [Autenticación]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Bienvenido ADMIN
+ *         description: Bienvenida de administrador
  */
-router.get('/admin', verifyToken, checkRole(['admin']), (req, res) => {
-  res.json({ message: 'Bienvenido ADMIN' });
+router.get('/admin', verificarToken, requerirRol(['Administrador']), (req, res) => {
+  res.json({ mensaje: 'Bienvenido ADMIN' });
 });
 
 /**
  * @swagger
- * /auth/profile:
+ * /auth/usuarios:
  *   get:
- *     summary: Obtener perfil del usuario autenticado
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Información del perfil del usuario
- */
-router.get('/profile', verifyToken, (req, res) => {
-  res.json({ message: `Perfil del usuario ${req.user.id}`, role: req.user.role });
-});
-
-/**
- * @swagger
- * /auth/users:
- *   get:
- *     summary: Listar todos los usuarios (solo admin)
- *     tags: [Auth]
+ *     summary: Listar todos los usuarios (requiere permiso usuarios.listar)
+ *     tags: [Autenticación]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Lista de usuarios
  */
-router.get('/users', verifyToken, checkRole(['admin']), authController.getAllUsers);
+router.get('/usuarios', verificarToken, requerirPermiso('usuarios.listar'), ctrl.listarUsuarios);
 
 /**
  * @swagger
- * /auth/users/{id}:
+ * /auth/usuarios/{id}:
  *   put:
- *     summary: Actualizar un usuario por ID (solo admin)
- *     tags: [Auth]
+ *     summary: Actualizar un usuario por ID (requiere permiso usuarios.actualizar)
+ *     tags: [Autenticación]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
+ *         required: true
  *         schema:
  *           type: integer
- *         required: true
  *         description: ID del usuario
  *     requestBody:
  *       required: true
@@ -132,40 +144,48 @@ router.get('/users', verifyToken, checkRole(['admin']), authController.getAllUse
  *           schema:
  *             type: object
  *             properties:
- *               username:
+ *               nombre:
  *                 type: string
- *                 example: "nuevo_nombre"
- *               password:
+ *                 example: "Carlos"
+ *               correo:
  *                 type: string
- *                 example: "nueva123"
- *               role:
+ *                 example: "carlos@example.com"
+ *               clave:
  *                 type: string
- *                 example: "user"
+ *                 example: "NuevaClave123"
+ *               activo:
+ *                 type: boolean
+ *                 example: true
+ *               roles:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["Empleado"]
  *     responses:
  *       200:
  *         description: Usuario actualizado
  */
-router.put('/users/:id', verifyToken, checkRole(['admin']), authController.updateUser);
+router.put('/usuarios/:id', verificarToken, requerirPermiso('usuarios.actualizar'), ctrl.actualizarUsuario);
 
 /**
  * @swagger
- * /auth/users/{id}:
+ * /auth/usuarios/{id}:
  *   delete:
- *     summary: Eliminar un usuario por ID (solo admin)
- *     tags: [Auth]
+ *     summary: Eliminar un usuario por ID (requiere permiso usuarios.eliminar)
+ *     tags: [Autenticación]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
+ *         required: true
  *         schema:
  *           type: integer
- *         required: true
  *         description: ID del usuario
  *     responses:
  *       200:
  *         description: Usuario eliminado
  */
-router.delete('/users/:id', verifyToken, checkRole(['admin']), authController.deleteUser);
+router.delete('/usuarios/:id', verificarToken, requerirPermiso('usuarios.eliminar'), ctrl.eliminarUsuario);
 
 module.exports = router;
